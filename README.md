@@ -1,5 +1,7 @@
 # Web-Synth with Just Intonation
 
+**[🎹 Try it now!](https://html-preview.github.io/?url=https://github.com/blyfoten/web-synth/raw/refs/heads/main/index.html)**
+
 A simple web-based synthesizer that can be played directly in the browser. 
 It uses the Web Audio API to generate sound and offers basic features for exploring different tuning systems:
 

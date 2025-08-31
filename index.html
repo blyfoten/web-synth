@@ -11,6 +11,9 @@
     }
     *{box-sizing:border-box;}
     body{margin:0;font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", sans-serif; color:var(--text); background: radial-gradient(1200px 700px at 20% -10%, #1b2240, #0b0d18) fixed;}
+    /* Disable context menu to prevent interference with multi-touch */
+    body, .keyboard, .key { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+    body { -webkit-touch-callout: none; }
     header{padding:18px 20px 8px;}
     h1{font-size:22px;margin:0 0 6px;letter-spacing:.2px}
     p.sub{margin:0;color:var(--muted);font-size:13px}
@@ -138,15 +141,15 @@
           <label for="osc">Waveform</label>
           <select id="osc">
             <option value="sine">Sine</option>
-            <option value="triangle">Triangle</option>
-            <option value="sawtooth" selected>Saw</option>
+            <option value="triangle" selected>Triangle</option>
+            <option value="sawtooth">Saw</option>
             <option value="square">Square</option>
           </select>
         </div>
         <div class="row">
           <label for="gain">Volume</label>
-          <input id="gain" type="range" min="0" max="1" step="0.001" value="0.5"/>
-          <span class="value" id="gainVal">0.50</span>
+          <input id="gain" type="range" min="0" max="1" step="0.001" value="0.3"/>
+          <span class="value" id="gainVal">0.30</span>
         </div>
       </div>
 
@@ -165,8 +168,8 @@
         <h3>Filter</h3>
         <div class="row">
           <label for="cutoff">Cutoff (Hz)</label>
-          <input id="cutoff" type="range" min="100" max="12000" step="1" value="3000" />
-          <span class="value" id="cutVal">3000</span>
+          <input id="cutoff" type="range" min="100" max="12000" step="1" value="1000" />
+          <span class="value" id="cutVal">1000</span>
         </div>
         <div class="row">
           <label for="res">Resonance (Q)</label>
@@ -203,8 +206,8 @@
         <h3>Delay</h3>
         <div class="row">
           <label for="delayMix">Mix</label>
-          <input id="delayMix" type="range" min="0" max="1" step="0.01" value="0.18" />
-          <span class="value" id="dMixVal">0.18</span>
+          <input id="delayMix" type="range" min="0" max="1" step="0.01" value="0" />
+          <span class="value" id="dMixVal">0.00</span>
         </div>
         <div class="row">
           <label for="delayTime">Time (s)</label>
@@ -222,13 +225,13 @@
         <h3>Reverb</h3>
         <div class="row">
           <label for="revMix">Mix</label>
-          <input id="revMix" type="range" min="0" max="1" step="0.01" value="0.25" />
-          <span class="value" id="revMixVal">0.25</span>
+          <input id="revMix" type="range" min="0" max="1" step="0.01" value="0.35" />
+          <span class="value" id="revMixVal">0.35</span>
         </div>
         <div class="row">
           <label for="revTime">Decay (s)</label>
-          <input id="revTime" type="range" min="0.1" max="15" step="0.1" value="2.4" />
-          <span class="value" id="revTimeVal">2.4</span>
+          <input id="revTime" type="range" min="0.1" max="15" step="0.1" value="3.2" />
+          <span class="value" id="revTimeVal">3.2</span>
         </div>
         <div class="row">
           <label for="roomSize">Room size</label>
@@ -417,11 +420,11 @@
   // ---------- Parameters / UI ----------
   const state = {
     mode:'equal', keyPc:0, octave:4,
-    oscType:'sawtooth', a:0.01, d:0.2, s:0.7, r:0.5,
-    cutoff:3000, q:1.2,
-    delayMix:0.18, delayTime:0.25, delayFb:0.35,
-    revMix:0.25, revTime:2.4, roomSize:0.7, preDelay:20,
-    gain:0.5,
+    oscType:'triangle', a:0.01, d:0.2, s:0.7, r:0.5,
+    cutoff:1000, q:1.2,
+    delayMix:0, delayTime:0.25, delayFb:0.35,
+    revMix:0.35, revTime:3.2, roomSize:0.7, preDelay:20,
+    gain:0.3,
   };
 
   function updateLabels(){
@@ -627,6 +630,12 @@
     reverbWet.gain.value = state.revMix;
     startScope();
   }, { once:true });
+
+  // Disable context menu to prevent interference with multi-touch
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    return false;
+  });
 
   // ---------- Oscilloscope drawing ----------
   const scope = $('scopeCanvas');
