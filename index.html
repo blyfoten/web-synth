@@ -16,6 +16,12 @@
     /* Disable context menu to prevent interference with multi-touch */
     body, .keyboard, .key { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
     body { -webkit-touch-callout: none; }
+    
+    /* Disable double-tap zoom on iOS */
+    body, .keyboard, .key, button, input, select { 
+      touch-action: manipulation; 
+      -webkit-touch-callout: none;
+    }
     header{padding:18px 20px 8px;}
     h1{font-size:22px;margin:0 0 6px;letter-spacing:.2px}
     p.sub{margin:0;color:var(--muted);font-size:13px}
@@ -417,6 +423,10 @@
     updateFilter({cutoff,q,bypass}){
       if (!this.filter) return;
       
+      // Always update the filter parameters first (even when bypassed)
+      this.filter.frequency.setValueAtTime(cutoff, audio.currentTime);
+      this.filter.Q.setValueAtTime(q, audio.currentTime);
+      
       if (bypass) {
         // Actually bypass the filter by disconnecting it
         try {
@@ -428,8 +438,6 @@
         try {
           this.osc.disconnect(this.env);
           this.osc.connect(this.filter);
-          this.filter.frequency.setValueAtTime(cutoff, audio.currentTime);
-          this.filter.Q.setValueAtTime(q, audio.currentTime);
         } catch(e) {}
       }
     }
@@ -729,6 +737,23 @@
     e.preventDefault();
     return false;
   });
+
+  // Disable double-tap zoom on iOS
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function (event) {
+    const now = (new Date()).getTime();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, false);
+
+  // Prevent pinch-to-zoom
+  document.addEventListener('touchmove', function(event) {
+    if (event.scale !== 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
 
   // ---------- Oscilloscope drawing ----------
   const scope = $('scopeCanvas');
