@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="sv">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Web-Synth – equal temperament & just intonation</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Web-Synth – equal temperament & just intonation</title>
   <style>
     :root{
       --bg:#0f1220; --panel:#161a2b; --panel2:#1d2338; --accent:#7dd3fc; --accent2:#a78bfa; --text:#e6e7ee; --muted:#9aa3b2;
@@ -99,12 +101,17 @@
       <div class="kbd-top">
         <div class="left">
           <span class="badge">Polyphonic</span>
-          <div class="mode" title="Choose tuning">
-            <div class="pill" role="group" aria-label="Tuning mode">
-              <button class="mode-btn" id="mode-eq" aria-pressed="true">Equal</button>
-              <button class="mode-btn" id="mode-ji" aria-pressed="false">Just</button>
-            </div>
+                  <div class="mode" title="Choose tuning">
+          <div class="pill" role="group" aria-label="Tuning mode">
+            <button class="mode-btn" id="mode-eq" aria-pressed="true">Equal</button>
+            <button class="mode-btn" id="mode-ji" aria-pressed="false">Just</button>
           </div>
+        </div>
+        <div class="mode" title="Sticky keys mode">
+          <div class="pill" role="group" aria-label="Sticky keys mode">
+            <button class="mode-btn" id="mode-sticky" aria-pressed="false">Sticky</button>
+          </div>
+        </div>
         </div>
         <div class="octave">
           <button id="oct-Down" aria-label="Decrease octave">−</button>
@@ -166,6 +173,10 @@
 
       <div class="group col-span-6">
         <h3>Filter</h3>
+        <div class="row">
+          <label for="filterBypass">Bypass</label>
+          <button id="filterBypass" class="toggle" style="width: auto; padding: 6px 12px;">Off</button>
+        </div>
         <div class="row">
           <label for="cutoff">Cutoff (Hz)</label>
           <input id="cutoff" type="range" min="100" max="12000" step="1" value="1000" />
@@ -380,7 +391,7 @@
       this.analyser.fftSize = 1024;
       this.analyser.smoothingTimeConstant = 0.3;
 
-      // Routing
+      // Routing - start with filter connected
       this.osc.connect(this.filter);
       this.filter.connect(this.env);
       this.env.connect(dryGain);
@@ -398,10 +409,24 @@
     }
 
     updateFreq(f){ this.osc?.frequency.setValueAtTime(f, audio.currentTime); }
-    updateFilter({cutoff,q}){
+    updateFilter({cutoff,q,bypass}){
       if (!this.filter) return;
-      this.filter.frequency.setValueAtTime(cutoff, audio.currentTime);
-      this.filter.Q.setValueAtTime(q, audio.currentTime);
+      
+      if (bypass) {
+        // Actually bypass the filter by disconnecting it
+        try {
+          this.osc.disconnect(this.filter);
+          this.osc.connect(this.env);
+        } catch(e) {}
+      } else {
+        // Reconnect the filter
+        try {
+          this.osc.disconnect(this.env);
+          this.osc.connect(this.filter);
+          this.filter.frequency.setValueAtTime(cutoff, audio.currentTime);
+          this.filter.Q.setValueAtTime(q, audio.currentTime);
+        } catch(e) {}
+      }
     }
     stop(r){
       if (!this.env) return;
@@ -419,9 +444,9 @@
 
   // ---------- Parameters / UI ----------
   const state = {
-    mode:'equal', keyPc:0, octave:4,
+    mode:'equal', keyPc:0, octave:4, stickyMode: false,
     oscType:'triangle', a:0.01, d:0.2, s:0.7, r:0.5,
-    cutoff:1000, q:1.2,
+    cutoff:1000, q:1.2, filterBypass: false,
     delayMix:0, delayTime:0.25, delayFb:0.35,
     revMix:0.35, revTime:3.2, roomSize:0.7, preDelay:20,
     gain:0.3,
@@ -449,8 +474,16 @@
   $('osc').addEventListener('input', e => state.oscType = e.target.value);
   $('gain').addEventListener('input', e => { state.gain = +e.target.value; ensureAudio(); master.gain.value = state.gain; updateLabels(); });
 
-  $('cutoff').addEventListener('input', e => { state.cutoff = +e.target.value; updateLabels(); for(const v of voices.values()) v.updateFilter({cutoff:state.cutoff,q:state.q}); });
-  $('res').addEventListener('input', e => { state.q = +e.target.value; updateLabels(); for(const v of voices.values()) v.updateFilter({cutoff:state.cutoff,q:state.q}); });
+  $('filterBypass').addEventListener('click', () => {
+    state.filterBypass = !state.filterBypass;
+    $('filterBypass').textContent = state.filterBypass ? 'On' : 'Off';
+    $('filterBypass').style.background = state.filterBypass ? 'linear-gradient(180deg,#6ee7ff,#60a5fa)' : '#0e1324';
+    $('filterBypass').style.color = state.filterBypass ? '#071225' : '#e7ecf7';
+    for(const v of voices.values()) v.updateFilter({cutoff:state.cutoff,q:state.q,bypass:state.filterBypass});
+  });
+  
+  $('cutoff').addEventListener('input', e => { state.cutoff = +e.target.value; updateLabels(); for(const v of voices.values()) v.updateFilter({cutoff:state.cutoff,q:state.q,bypass:state.filterBypass}); });
+  $('res').addEventListener('input', e => { state.q = +e.target.value; updateLabels(); for(const v of voices.values()) v.updateFilter({cutoff:state.cutoff,q:state.q,bypass:state.filterBypass}); });
 
   $('attack').addEventListener('input', e => { state.a = +e.target.value; updateLabels(); });
   $('decay').addEventListener('input', e => { state.d = +e.target.value; updateLabels(); });
@@ -470,11 +503,22 @@
 
   $('mode-eq').addEventListener('click', () => setMode('equal'));
   $('mode-ji').addEventListener('click', () => setMode('just'));
+  $('mode-sticky').addEventListener('click', () => toggleSticky());
+  
   function setMode(m){
     state.mode = m;
     $('mode-eq').setAttribute('aria-pressed', m==='equal');
     $('mode-ji').setAttribute('aria-pressed', m==='just');
     refreshHeldNotes();
+  }
+  
+  function toggleSticky(){
+    state.stickyMode = !state.stickyMode;
+    $('mode-sticky').setAttribute('aria-pressed', state.stickyMode);
+    if (!state.stickyMode) {
+      // Release all keys when turning off sticky mode
+      allOff();
+    }
   }
 
   $('oct-Up').addEventListener('click', ()=>{ state.octave = clamp(state.octave+1,1,7); updateLabels(); rebuildWhiteKeys(); });
@@ -542,7 +586,26 @@
     const v = voices.get(midi); if (!v) return; v.stop(state.r); voices.delete(midi);
     removeLegend(midi); voiceScopes.delete(midi);
   }
-  function allOff(){ for(const [m,v] of voices) v.stop(0.02); voices.clear(); voiceScopes.clear(); rebuildLegendBase(); }
+  function allOff(){ 
+    // Force stop all voices immediately
+    for(const [m,v] of voices) {
+      try {
+        v.stop(0.001); // Very fast release
+        // Force disconnect all nodes
+        if (v.osc) v.osc.stop();
+        if (v.filter) v.filter.disconnect();
+        if (v.env) v.env.disconnect();
+        if (v.analyser) v.analyser.disconnect();
+      } catch(e) {}
+    }
+    voices.clear(); 
+    voiceScopes.clear(); 
+    rebuildLegendBase();
+    
+    // Clear any active key states
+    document.querySelectorAll('.key.active').forEach(key => key.classList.remove('active'));
+    activePointers.clear();
+  }
 
   // Pointer interactions
   const activePointers = new Map(); // pointerId -> {key, midi}
@@ -550,10 +613,27 @@
   function handlePress(el, pointerId){ 
     const step = +el.dataset.step; 
     const midi = midiForStep(step); 
-    if (voices.has(midi)) return; 
-    el.classList.add('active'); 
-    noteOn(midi);
-    activePointers.set(pointerId, {key: el, midi: midi});
+    
+    if (state.stickyMode) {
+      // In sticky mode, toggle the key
+      if (voices.has(midi)) {
+        // Key is playing, turn it off
+        el.classList.remove('active');
+        noteOff(midi);
+        activePointers.delete(pointerId);
+      } else {
+        // Key is not playing, turn it on
+        el.classList.add('active');
+        noteOn(midi);
+        activePointers.set(pointerId, {key: el, midi: midi});
+      }
+    } else {
+      // Normal mode - just turn on the key
+      if (voices.has(midi)) return; 
+      el.classList.add('active'); 
+      noteOn(midi);
+      activePointers.set(pointerId, {key: el, midi: midi});
+    }
   }
   
   function handleRelease(pointerId){ 
@@ -561,14 +641,22 @@
     if (!pointerData) return;
     
     const {key: el, midi} = pointerData;
-    el.classList.remove('active'); 
-    noteOff(midi);
-    activePointers.delete(pointerId);
+    
+    if (!state.stickyMode) {
+      // Only release in normal mode
+      el.classList.remove('active'); 
+      noteOff(midi);
+      activePointers.delete(pointerId);
+    }
+    // In sticky mode, do nothing on release - keys stay pressed
   }
   
   function handleSlide(e) {
     const pointerData = activePointers.get(e.pointerId);
     if (!pointerData) return;
+    
+    // Disable sliding when sticky mode is active
+    if (state.stickyMode) return;
     
     const rect = $('keyboard').getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -621,7 +709,7 @@
     el.addEventListener('pointermove', handleSlide);
   }
 
-  function refreshHeldNotes(){ for(const [m,v] of voices){ v.updateFreq(freqFor(m)); v.updateFilter({cutoff:state.cutoff,q:state.q}); } }
+  function refreshHeldNotes(){ for(const [m,v] of voices){ v.updateFreq(freqFor(m)); v.updateFilter({cutoff:state.cutoff,q:state.q,bypass:state.filterBypass}); } }
 
   // Initialize audio routing once on first user gesture
   document.body.addEventListener('pointerdown', ()=>{
@@ -647,10 +735,10 @@
     return freqEqual(cMidi);
   }
 
-  // Calculate time window for 2 complete C wavelengths
+  // Calculate time window for 4 complete C wavelengths
   function getTimeWindow() {
     const cFreq = getCFrequency();
-    return 2 / cFreq; // 2 complete wavelengths
+    return 4 / cFreq; // 4 complete wavelengths
   }
 
   function clear(){
@@ -676,18 +764,62 @@
     const sampleRate = audio.sampleRate;
     const samplesPerWindow = Math.floor(timeWindow * sampleRate);
     
-    // Find trigger point (first upward zero crossing)
     let triggerIndex = 0;
-    for (let i = 1; i < bufferLength; i++) {
-      const prev = (data[i-1] - 128) / 128;
-      const curr = (data[i] - 128) / 128;
-      if (prev < 0 && curr >= 0) {
-        triggerIndex = i;
-        break;
+    
+    if (analyser === analyserMaster) {
+      // For the total output, use a more stable trigger strategy
+      if (state.mode === 'just') {
+        // Just intonation: use C frequency trigger for stability
+        const cFreq = getCFrequency();
+        const cPeriod = sampleRate / cFreq;
+        const cSamples = Math.floor(cPeriod);
+        
+        // Find a good zero crossing near the start
+        for (let i = 1; i < Math.min(cSamples, bufferLength); i++) {
+          const prev = (data[i-1] - 128) / 128;
+          const curr = (data[i] - 128) / 128;
+          if (prev < 0 && curr >= 0) {
+            triggerIndex = i;
+            break;
+          }
+        }
+      } else {
+        // Equal temperament: use adaptive trigger that shows evolution
+        // Find the most prominent zero crossing in the first quarter
+        const searchRange = Math.floor(bufferLength / 4);
+        let bestCrossing = 0;
+        let maxAmplitude = 0;
+        
+        for (let i = 1; i < searchRange; i++) {
+          const prev = (data[i-1] - 128) / 128;
+          const curr = (data[i] - 128) / 128;
+          if (prev < 0 && curr >= 0) {
+            // Check amplitude around this crossing
+            let amp = 0;
+            for (let j = Math.max(0, i-10); j < Math.min(bufferLength, i+10); j++) {
+              amp += Math.abs((data[j] - 128) / 128);
+            }
+            if (amp > maxAmplitude) {
+              maxAmplitude = amp;
+              bestCrossing = i;
+            }
+          }
+        }
+        triggerIndex = bestCrossing;
+      }
+    } else {
+      // For individual keys, use simple zero crossing
+      for (let i = 1; i < bufferLength; i++) {
+        const prev = (data[i-1] - 128) / 128;
+        const curr = (data[i] - 128) / 128;
+        if (prev < 0 && curr >= 0) {
+          triggerIndex = i;
+          break;
+        }
       }
     }
     
-    // Calculate how many samples to show (2 C wavelengths worth)
+    // Calculate how many samples to show
     const samplesToShow = Math.min(samplesPerWindow, bufferLength - triggerIndex);
     const slice = scope.width / samplesToShow;
     
