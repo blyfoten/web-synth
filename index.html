@@ -398,6 +398,11 @@
       this.env.connect(delayIn);
       this.env.connect(this.analyser);
 
+      // Apply filter bypass state immediately if needed
+      if (params.bypass) {
+        this.updateFilter({cutoff: params.cutoff, q: params.q, bypass: true});
+      }
+
       // ADSR
       const {a,d,s} = params;
       this.env.gain.cancelScheduledValues(t);
@@ -570,7 +575,7 @@
   }
   const freqFor = midi => state.mode==='equal'? freqEqual(midi) : freqJust(midi);
 
-  const currentParams = () => ({ type: state.oscType, a:state.a, d:state.d, s:state.s, r:state.r, cutoff:state.cutoff, q:state.q });
+  const currentParams = () => ({ type: state.oscType, a:state.a, d:state.d, s:state.s, r:state.r, cutoff:state.cutoff, q:state.q, bypass:state.filterBypass });
 
   function noteOn(midi){
     ensureAudio();
